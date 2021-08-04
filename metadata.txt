@@ -1,0 +1,27 @@
+metadata {
+    name: "pyroomsensor"
+    description: "Room Sensor plugin for Anton"
+    remote_url: "https://github.com/HomeWeave/PyRoomSensor"
+}
+runtime {
+    runtime_type: PY3
+    py3_runtime_info {
+        main_service_class: "pyroomsensor.service.RoomSensorPlugin"
+    }
+    pipes {
+        pipe_id: "instructions"
+        pipe_type: IOT_INSTRUCTION
+    }
+    pipes {
+        pipe_id: "events"
+        pipe_type: IOT_EVENTS
+    }
+    pipes {
+        pipe_id: "platform_request"
+        pipe_type: PLATFORM_REQUEST
+    }
+    pipes {
+        pipe_id: "platform_response"
+        pipe_type: PLATFORM_RESPONSE
+    }
+}
