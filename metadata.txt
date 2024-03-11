@@ -1,12 +1,12 @@
 metadata {
-    name: "pyroomsensor"
-    description: "Room Sensor plugin for Anton"
-    remote_url: "https://github.com/HomeWeave/PyRoomSensor"
+    name: "GenericGPIO"
+    description: "Generic GPIO plugin for Anton"
+    remote_url: "https://github.com/HomeWeave/GenericGPIO"
 }
 runtime {
     runtime_type: PY3
     py3_runtime_info {
-        main_service_class: "pyroomsensor.service.RoomSensorPlugin"
+        main_service_class: "genericgpio.service.GPIOPlugin"
     }
     pipes {
         pipe_id: "instructions"
@@ -24,4 +24,9 @@ runtime {
         pipe_id: "platform_response"
         pipe_type: PLATFORM_RESPONSE
     }
+    pipes {
+        pipe_id: "settings"
+        pipe_type: SETTINGS
+    }
+    data_files: "settings_ui.json"
 }

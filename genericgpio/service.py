@@ -18,6 +18,8 @@ from anton.platform_pb2 import PlatformRequest
 from anton.sensor_pb2 import MOTION_DETECTED, NO_MOTION
 from anton.gpio_pb2 import EDGE_TYPE_BOTH, PIN_VALUE_HIGH
 
+from genericgpio.settings import Settings
+
 
 class EventWrapper:
     def __init__(self, device_id):
@@ -55,7 +57,7 @@ class PlatformRequestWrapper:
         return req
 
 
-class RoomSensorPlugin(AntonPlugin):
+class GPIOPlugin(AntonPlugin):
     def setup(self, plugin_startup_info):
         instruction_controller = GenericInstructionController({})
         event_controller = GenericEventController(lambda call_status: 0)
@@ -71,6 +73,9 @@ class RoomSensorPlugin(AntonPlugin):
         self.event_wrapper = EventWrapper(device_id)
         self.platform_request_wrapper = PlatformRequestWrapper(device_id)
 
+        settings_controller = Settings(plugin_startup_info.data_dir)
+
+
         registry = self.channel_registrar()
         registry.register_controller(PipeType.IOT_INSTRUCTION,
                                      instruction_controller)
@@ -79,6 +84,7 @@ class RoomSensorPlugin(AntonPlugin):
                                      platform_request_controller)
         registry.register_controller(PipeType.PLATFORM_RESPONSE,
                                      platform_response_controller)
+        registry.register_controller(PipeType.SETTINGS, settings_controller)
 
     def on_start(self):
         self.send_event(self.event_wrapper.online_event())
