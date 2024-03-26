@@ -28,5 +28,5 @@ runtime {
         pipe_id: "settings"
         pipe_type: SETTINGS
     }
-    data_files: "settings_ui.json"
+    data_files: "ui"
 }
