@@ -88,54 +88,6 @@ class AppHandler(AppHandlerBase):
         self.devices_manager.add_device(msg)
 
 
-class SettingsController:
-
-    def __init__(self, settings, devices_manager, data_dir):
-        self.settings = settings
-        self.devices_manager = devices_manager
-        self.settings_page = load_dynamic_app(data_dir, 'ui/settings_ui.pb')
-
-        super().__init__({
-            "get_settings_ui": self.get_settings_ui,
-            "custom_request": self.handle_custom_request
-        })
-
-    def handle_custom_request(self, settings_request):
-        payload = settings_request.custom_request.payload
-        if payload is None:
-            return SettingsResponse(request_id=settings_request.request_id,
-                                    custom_response=CustomMessage())
-
-        request = json.loads(payload)
-
-        action = request.get('action')
-        handler = getattr(self, 'handle_' + (action or 'default'),
-                          self.handle_default)
-        payload = handler(request)
-        response = CustomMessage(index=settings_request.custom_request.index,
-                                 payload=payload)
-        return SettingsResponse(request_id=settings_request.request_id,
-                                custom_response=response)
-
-    def handle_default(self, request):
-        return None
-
-    def handle_get_all_settings(self, request):
-        return json.dumps({"type": "settings", "payload": self.settings.props})
-
-    def handle_add_device(self, request):
-        self.devices_manager.add_device(request["type"])
-        return self.handle_get_all_settings(request)
-
-    def handle_update_name(self, request):
-        self.devices_manager.update_name(request["id"], request["value"])
-        return self.handle_get_all_settings(request)
-
-    def handle_change_pin(self, request):
-        self.devices_manager.change_pin(request["id"], request["value"])
-        return self.handle_get_all_settings(request)
-
-
 class DevicesManager(DeviceHandlerBase):
 
     def __init__(self, config):
@@ -235,17 +187,6 @@ class GPIOPlugin(AntonPlugin):
                                       self.devices_manager)
 
         self.channel = Channel(self.devices_manager, self.app_handler)
-        """
-        platform_response_controller = PlatformResponseController(
-            {"gpio_event": self.devices_manager.on_pin_value_changed})
-
-        instruction_controller = GenericInstructionController(
-            {"power_state": self.devices_manager.on_instruction})
-
-        settings_controller = SettingsController(self.settings,
-                                                 self.devices_manager,
-                                                 plugin_startup_info.data_dir)
-        """
         registry = self.channel_registrar()
         registry.register_controller(PipeType.DEFAULT, self.channel)
 
