@@ -1,0 +1,100 @@
+id: "newDeviceContainer"
+replacement_target: "new_device_container"
+scroll_layout {
+  containers {
+    id: "new_device_type_drop_down"
+    drop_down {
+      name: "Device Type"
+      on_update {
+        actions {
+          action_id: "update_new_device_submit_button"
+        }
+        actions {
+          debug {
+            tag: "Device Type update"
+            context_id: "."
+          }
+        }
+      }
+      {% for supported_device in supported_devices %}
+        items {
+          item_id: "{{ supported_device.id }}"
+          item_text: "{{ supported_device.name }}"
+        }
+      {% endfor %}
+    }
+  }
+  containers {
+    id: "new_device_pin_drop_down"
+    drop_down {
+      name: "GPIO Pin"
+      on_update {
+        actions {
+          action_id: "update_new_device_submit_button"
+        }
+        actions {
+          debug {
+            tag: "Device Type update"
+            context_id: "."
+          }
+        }
+      }
+      {% for pin in available_pins %}
+        items {
+          item_id: "{{ pin }}"
+          item_text: "GPIO Pin {{ pin }}"
+        }
+      {% endfor %}
+    }
+  }
+  containers {
+    id: "new_device_submit_button"
+    replacement_target: "new_device_submit_button"
+    options {
+      hide: true
+    }
+    button {
+      text: "Add Device"
+      on_click {
+        actions {
+          input_control_action {
+            bus_key: "new_device_type_drop_down"
+            retrieve_value: true
+            target_id: "new_device_type"
+          }
+        }
+        actions {
+          input_control_action {
+            bus_key: "new_device_pin_drop_down"
+            retrieve_value: true
+            target_id: "new_device_pin"
+          }
+        }
+        actions {
+          debug {
+            tag: "Button"
+            context_id: "."
+          }
+        }
+        actions {
+          jq_action {
+            target_id: "payload_json"
+            context_id: "."
+            transform_expression: '{action: \"add_device\",'
+                                  'type: .new_device_type,'
+                                  'pin: .new_device_pin}'
+          }
+        }
+        actions {
+          serialize_action {
+            json: true,
+            target_id: "payload"
+          }
+        }
+        actions {
+          action_id: "send_data"
+        }
+      }
+    }
+  }
+}

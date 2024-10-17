@@ -1,0 +1,36 @@
+scroll_layout {
+  {% if all_devices.length > 0 %}
+  containers {
+    id: "title"
+    text: {
+      text: "Configured devices"
+      typography: H5
+    }
+  }
+  {% endif %}
+  {% for device in all_devices %}
+    containers {
+      id: "title_{{ device.id }}_normal"
+      box {
+        border {
+          color {
+            hex: "#DDD"
+          }
+        }
+        container {
+          text {
+            text: "{{ device.name }}"
+          }
+        }
+      }
+    }
+  {% endfor %}
+  {% if all_devices.length == 0 %}
+    containers [{
+      id: "title_prompt_configure"
+      text {
+        text: "No GPIO Devices configured."
+      }
+    }]
+  {% endif %}
+}

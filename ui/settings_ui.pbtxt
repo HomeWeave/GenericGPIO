@@ -1,0 +1,351 @@
+/*
+import: ui/devices_ui.pbtxt.template
+import: ui/new_device_ui.pbtxt.template
+*/
+root {
+  scroll_layout {
+    containers {
+      id: "btnAddDevices"
+      text {
+        text: "Add new Device"
+        typography: H5
+      }
+    }
+    containers {
+      id: "newDeviceContainer"
+      text { text: "" }
+      replacement_target: "new_device_container"
+    }
+    containers {
+      id: "separator"
+      horizontal_line {}
+    }
+    containers {
+      id: "txtLoadingDevices"
+      text {
+        text: "Loading devices.."
+      }
+      replacement_target: "devices_section"
+    }
+  }
+}
+onload_actions_list {
+  actions {
+    action_id: "get_all_devices"
+  }
+  actions {
+    action_id: "get_supported_device_types"
+  }
+  actions {
+    action_id: "get_available_pins"
+  }
+}
+subscriptions {
+  type: INBOUND_CUSTOM_MESSAGE
+  actions_list {
+    actions {
+      parse_action {
+        string_to_json: true
+      }
+    }
+    actions {
+      debug {
+        context_id: "$result"
+        tag: "Incoming message"
+      }
+    }
+    actions {
+      action_id: "handle_devices_change"
+      conditional {
+        jq_conditional: ".[\"$result\"].type == \"devices\""
+      }
+    }
+    actions {
+      action_id: "handle_supported_devices_change"
+      conditional {
+        jq_conditional: ".[\"$result\"].type == \"supported_devices\""
+      }
+    }
+    actions {
+      action_id: "handle_available_pins_change"
+      conditional {
+        jq_conditional: ".[\"$result\"].type == \"available_pins\""
+      }
+    }
+    actions {
+      debug {
+        context_id: "."
+        tag: "Post incoming message processing.."
+      }
+    }
+  }
+}
+configured_actions {
+  key: "send_data"
+  value {
+    actions {
+      apply_template_to_context_action {
+        template: "{{ payload }}"
+      }
+    }
+    actions {
+      parse_action {
+        string_to_json: true
+      }
+    }
+    actions {
+      serialize_action {
+        json: true
+      }
+    }
+    actions {
+      server_action {
+        channel_type: OUTBOUND_CUSTOM_MESSAGE
+      }
+    }
+  }
+}
+configured_actions {
+  key: "get_supported_device_types"
+  value {
+    actions {
+      action_id: "send_data"
+      additional_context {
+        key: "payload"
+        value: "{ 'action': 'get_supported_device_types' }"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "get_available_pins"
+  value {
+    actions {
+      action_id: "send_data"
+      additional_context {
+        key: "payload"
+        value: "{ 'action': 'get_available_pins' }"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "get_all_devices"
+  value {
+    actions {
+      action_id: "send_data"
+      additional_context {
+        key: "payload"
+        value: "{ 'action': 'get_all_devices' }"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "handle_devices_change"
+  value {
+    actions {
+      jq_action {
+        transform_expression: ".value.devices"
+      }
+    }
+    actions {
+      store_to_global_context_action {
+        target_id: "all_devices"
+      }
+    }
+    actions {
+      action_id: "load_template_container"
+      additional_context {
+        key: "resource"
+        value: "ui/devices_ui.pbtxt.template"
+      }
+      additional_context {
+        key: "target"
+        value: "devices_section"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "handle_supported_devices_change"
+  value {
+    actions {
+      jq_action {
+        transform_expression: ".value.supported_devices"
+      }
+    }
+    actions {
+      store_to_global_context_action {
+        target_id: "supported_devices"
+      }
+    }
+    actions {
+      action_id: "load_template_container"
+      additional_context {
+        key: "resource"
+        value: "ui/new_device_ui.pbtxt.template"
+      }
+      additional_context {
+        key: "target"
+        value: "new_device_container"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "handle_available_pins_change"
+  value {
+    actions {
+      jq_action {
+        transform_expression: ".value.available_pins"
+      }
+    }
+    actions {
+      store_to_global_context_action {
+        target_id: "available_pins"
+      }
+    }
+    actions {
+      action_id: "load_template_container"
+      additional_context {
+        key: "resource"
+        value: "ui/new_device_ui.pbtxt.template"
+      }
+      additional_context {
+        key: "target"
+        value: "new_device_container"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "load_template_container"
+  value {
+    actions {
+      load_resource_action {
+        resource_id: "{{resource}}"
+      }
+    }
+    actions {
+      apply_template_to_context_action {}
+    }
+    actions {
+      parse_action {
+        parse_text_proto_type: "anton.ui.Container"
+      }
+    }
+    actions {
+      debug {
+        tag: "template test"
+        context_id: "."
+      }
+    }
+    actions {
+      container_action {
+        bus_key: "{{ target }}"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "update_new_device_submit_button"
+  value {
+    actions {
+      input_control_action {
+        bus_key: "new_device_type_drop_down"
+        retrieve_value: true
+        target_id: "new_device_type"
+      }
+    }
+    actions {
+      input_control_action {
+        bus_key: "new_device_pin_drop_down"
+        retrieve_value: true
+        target_id: "new_device_pin"
+      }
+    }
+    actions {
+      jq_action {
+        target_id: "submit_enabled"
+        context_id: "."
+        transform_expression:
+            "((.new_device_type | length) * (.new_device_pin | length)) > 0"
+      }
+    }
+    actions {
+      action_id: "hide_container"
+      conditional {
+        jq_conditional: [
+          ".submit_enabled == false"
+        ]
+      }
+      additional_context {
+        key: "target"
+        value: "new_device_submit_button"
+      }
+    }
+    actions {
+      action_id: "show_container"
+      conditional {
+        jq_conditional: [
+          ".submit_enabled == true"
+        ]
+      }
+      additional_context {
+        key: "target"
+        value: "new_device_submit_button"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "update_container"
+  value {
+    actions {
+      apply_template_to_context_action {
+        template: "{{ payload }}"
+      }
+    }
+    actions {
+      parse_action {
+        string_to_json: true
+      }
+    }
+    actions {
+      parse_action {
+        parse_json_proto_type: "anton.ui.Container"
+      }
+    }
+    actions {
+      container_action {
+        bus_key: "{{target}}"
+        operation_type: kContainerMerge
+      }
+    }
+  }
+}
+configured_actions {
+  key: "hide_container"
+  value {
+    actions {
+      action_id: "update_container"
+      additional_context {
+        key: "payload"
+        value: "{'options': {'hide': true }}"
+      }
+    }
+  }
+}
+configured_actions {
+  key: "show_container"
+  value {
+    actions {
+      action_id: "update_container"
+      additional_context {
+        key: "payload"
+        value: "{'options': {'hide': false }}"
+      }
+    }
+  }
+}

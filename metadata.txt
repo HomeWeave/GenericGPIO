@@ -9,24 +9,7 @@ runtime {
         main_service_class: "genericgpio.service.GPIOPlugin"
     }
     pipes {
-        pipe_id: "instructions"
-        pipe_type: IOT_INSTRUCTION
-    }
-    pipes {
-        pipe_id: "events"
-        pipe_type: IOT_EVENTS
-    }
-    pipes {
-        pipe_id: "platform_request"
-        pipe_type: PLATFORM_REQUEST
-    }
-    pipes {
-        pipe_id: "platform_response"
-        pipe_type: PLATFORM_RESPONSE
-    }
-    pipes {
-        pipe_id: "settings"
-        pipe_type: SETTINGS
+        pipe_type: DEFAULT
     }
     data_files: "ui"
 }

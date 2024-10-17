@@ -7,28 +7,88 @@ from enum import Enum
 from pathlib import Path
 
 from pyantonlib.plugin import AntonPlugin
-from pyantonlib.channel import GenericInstructionController
-from pyantonlib.channel import GenericEventController
-from pyantonlib.channel import PlatformRequestController
-from pyantonlib.channel import SettingsController as SC
-from pyantonlib.channel import PlatformResponseController
+from pyantonlib.channel import AppHandlerBase, DeviceHandlerBase
+from pyantonlib.channel import DefaultProtoChannel
 from pyantonlib.dynamic_app import load_dynamic_app
 from pyantonlib.utils import log_info, log_warn
 from anton.plugin_pb2 import PipeType
-from anton.events_pb2 import GenericEvent
 from anton.device_pb2 import DeviceKind
 from anton.device_pb2 import DEVICE_STATUS_ONLINE, DEVICE_STATUS_OFFLINE
 from anton.device_pb2 import DEVICE_KIND_MOTION_SENSOR
 from anton.platform_pb2 import PlatformRequest
 from anton.sensor_pb2 import MOTION_DETECTED, NO_MOTION
 from anton.gpio_pb2 import EDGE_TYPE_BOTH, PIN_VALUE_HIGH
-from anton.ui_pb2 import Page, CustomMessage
-from anton.settings_pb2 import SettingsResponse
+from anton.ui_pb2 import Page, CustomMessage, DynamicAppRequestType
 
 from genericgpio.settings import Settings
+from genericgpio.devices import get_device_class
 
 
-class SettingsController(SC):
+class Channel(DefaultProtoChannel):
+    pass
+
+
+class AppHandler(AppHandlerBase):
+
+    def __init__(self, plugin_startup_info, devices_manager):
+        super().__init__(plugin_startup_info, incoming_message_key='action')
+        self.devices_manager = devices_manager
+        self.register_action('get_all_devices', self.handle_get_all_devices)
+        self.register_action('get_available_pins',
+                             self.handle_get_available_pins)
+        self.register_action('get_supported_device_types',
+                             self.handle_get_supported_device_types)
+        self.register_action('add_device', self.handle_add_device)
+
+    def get_ui_path(self, app_type):
+        if app_type == DynamicAppRequestType.SETTINGS:
+            return "ui/settings_ui.pbtxt"
+
+    def handle_get_all_devices(self, requester_id, msg):
+        self.send_message(
+            {
+                "type": "devices",
+                "value": {
+                    "devices": self.devices_manager.get_devices()
+                }
+            },
+            requester_id=requester_id)
+
+    def handle_get_supported_device_types(self, requester_id, msg):
+        self.send_message(
+            {
+                "type": "supported_devices",
+                "value": {
+                    "supported_devices": [
+                        {
+                            "id": "SimpleSensorDevice",
+                            "name": "Simple Sensor Device"
+                        },
+                        {
+                            "id": "SimpleActuatorDevice",
+                            "name": "Simple Actuator Device"
+                        },
+                    ]
+                }
+            },
+            requester_id=requester_id)
+
+    def handle_get_available_pins(self, requester_id, msg):
+        self.send_message(
+            {
+                "type": "available_pins",
+                "value": {
+                    "available_pins": [0, 1, 2, 3]
+                }
+            },
+            requester_id=requester_id)
+
+    def handle_add_device(self, requester_id, msg):
+        msg.pop('action', None)
+        self.devices_manager.add_device(msg)
+
+
+class SettingsController:
 
     def __init__(self, settings, devices_manager, data_dir):
         self.settings = settings
@@ -39,11 +99,6 @@ class SettingsController(SC):
             "get_settings_ui": self.get_settings_ui,
             "custom_request": self.handle_custom_request
         })
-
-    def get_settings_ui(self, settings_request):
-        resp = SettingsResponse(request_id=settings_request.request_id,
-                                settings_ui_response=self.settings_page)
-        return resp
 
     def handle_custom_request(self, settings_request):
         payload = settings_request.custom_request.payload
@@ -81,142 +136,10 @@ class SettingsController(SC):
         return self.handle_get_all_settings(request)
 
 
-class GenericDevice:
+class DevicesManager(DeviceHandlerBase):
 
-    def __init__(self, config, devices_manager, send_event):
-        self.devices_manager = devices_manager
-        self.send_event = send_event
-
+    def __init__(self, config):
         self.config = config
-        self.device_id = None
-        self.device_name = None
-
-        self.reload_config()
-
-    def reload_config(self):
-        self.device_id = self.config["id"]
-        self.device_name = self.config["name"]
-
-    def start(self):
-        event = GenericEvent(device_id=self.device_id)
-        event.device.friendly_name = self.device_name
-        event.device.device_status = DEVICE_STATUS_ONLINE
-
-        self.fill_device_meta(event)
-
-        self.send_event(event)
-
-    def stop(self):
-        event = GenericEvent(device_id=self.device_id)
-        event.device.device_status = DEVICE_STATUS_OFFLINE
-        self.send_event(event)
-
-    def update_name(self, new_name):
-        self.config["name"] = new_name
-
-    def on_change(self, pin, value):
-        raise NotImplementedError
-
-    def on_instruction(self, instruction):
-        raise NotImplementedError
-
-    def fill_device_meta(self, event):
-        raise NotImplementedError
-
-    @staticmethod
-    def new_config():
-        return {"id": str(uuid4()), "name": "New Device " + str(uuid4())}
-
-
-class SimpleSensorDevice(GenericDevice):
-
-    def reload_config(self):
-        super().reload_config()
-        self.pin = int(self.config["pin"])
-
-    def start(self):
-        super().start()
-        self.devices_manager.subscribe_pin(self, self.pin)
-
-    def stop(self):
-        self.devices_manager.unsubscribe_pin(self, self.pin)
-        super().stop()
-
-    def change_pin(self, new_pin):
-        self.config["pin"] = str(new_pin)
-
-    def fill_device_meta(self, event):
-        pass
-
-    def on_change(self, pin, value):
-        pass
-
-    @staticmethod
-    def new_config():
-        config = super(SimpleSensorDevice, SimpleSensorDevice).new_config()
-        config["pin"] = 0
-        config["type"] = SimpleSensorDevice.__name__
-        return config
-
-
-class MotionSensorDevice(SimpleSensorDevice):
-
-    def fill_device_meta(self, event):
-        event.device.device_kind = DEVICE_KIND_MOTION_SENSOR
-
-    def on_change(self, pin, value):
-        event = GenericEvent(device_id=self.device_id)
-        event.sensor.motion_sensor = MOTION_DETECTED if value else NO_MOTION
-        self.send_event(event)
-
-    @staticmethod
-    def new_config():
-        config = super(MotionSensorDevice, MotionSensorDevice).new_config()
-        config["type"] = MotionSensorDevice.__name__
-        return config
-
-
-class SimpleActuatorDevice(GenericDevice):
-
-    def reload_config(self):
-        super().reload_config()
-        self.pin = int(self.config["pin"])
-
-    def start(self):
-        super().start()
-        self.devices_manager.subscribe_instruction(self, self.pin)
-
-    def stop(self):
-        self.devices_manager.unsubscribe_instruction(self, self.pin)
-        super().stop()
-
-    def fill_device_meta(self, event):
-        pass
-
-    def on_instruction(self, context, instruction):
-        pass
-
-    @staticmethod
-    def new_config():
-        config = super(SimpleActuatorDevice, SimpleActuatorDevice).new_config()
-        config["type"] = SimpleActuatorDevice.__name__
-        config["pin"] = 0
-        return config
-
-
-def get_device_class(type_str):
-    known_types = [
-        SimpleActuatorDevice, SimpleSensorDevice, MotionSensorDevice
-    ]
-    return {x.__name__: x for x in known_types}.get(type_str, None)
-
-
-class DevicesManager:
-
-    def __init__(self, config, send_platform_request, send_event):
-        self.config = config
-        self.send_platform_request = send_platform_request
-        self.send_event = send_event
         self.pin_to_devices = {}
         self.id_to_devices = {}
 
@@ -226,26 +149,40 @@ class DevicesManager:
         for device_config in self.config.get_prop("devices", []):
             device_class = get_device_class(device_config["type"])
             if device_class:
-                device = device_class(device_config, self, self.send_event)
-                self.id_to_devices[device.device_id] = device
+                device = device_class(device_config, self)
+                self.id_to_devices[device.device_id()] = device
                 device.start()
 
     def stop(self):
-        pass
+        for device in self.id_to_devices.values():
+            device.stop()
 
-    def on_pin_value_changed(self, pin, value):
-        device = self.pin_to_devices.get(pin)
-        if not device:
-            device.on_change(pin, value)
+    def handle_platform_response(self, msg, callback):
+        platform_response = msg.platform_response
+        if platform_response.WhichOneof('response_type') != 'gpio_event':
+            return
 
-    def on_instruction(self, context, instruction):
-        device = self.pin_to_devices.get(pin)
+        gpio_event = platform_response.gpio_event
+
+        if gpio_event.WhichOneof('response_type') != 'pin_state':
+            return
+
+        device = self.pin_to_devices.get(gpio_event.pin_state.pin_number)
         if not device:
+            device.on_change(gpio_event.pin_state.pin_number,
+                             gpio_event.pin_state.pin_value)
+
+    def handle_instruction(self, msg, callback):
+        instruction = msg.instruction
+        device = self.id_to_devices.get(instruction.device_id, None)
+        if device:
             device.on_instruction(context, instruction)
+        else:
+            log_warn("No device found: " + instruction.device_id)
 
     def subscribe_pin(self, device, pin_number):
         req = PlatformRequest()
-        req.gpio_request.device_id = device.device_id
+        req.gpio_request.device_id = device.device_id()
         req.gpio_request.gpio_input.pin_number = pin_number
         req.gpio_request.gpio_input.edge_type = EDGE_TYPE_BOTH
         self.send_platform_request(req)
@@ -254,25 +191,23 @@ class DevicesManager:
 
     def unsubscribe_pin(self, device, pin_number):
         req = PlatformRequest()
-        req.gpio_request.device_id = device.device_id
+        req.gpio_request.device_id = device.device_id()
         req.gpio_request.gpio_input.pin_number = pin_number
         req.gpio_request.gpio_input.edge_type = EDGE_TYPE_BOTH
         self.send_platform_request(req)
 
         self.pin_to_devices.pop(pin_number, None)
 
-    def subscribe_instruction(self, device, pin_number):
-        self.pin_to_devices[pin_number] = device
+    def get_devices(self):
+        return [device.get_config() for device in self.id_to_devices.values()]
 
-    def unsubscribe_instruction(self, device, pin_number):
-        self.pin_to_devices.pop(pin_number, None)
-
-    def add_device(self, device_type):
-        cls = get_device_class(device_type)
+    def add_device(self, config):
+        cls = get_device_class(config["type"])
         if not cls:
-            print("Unknown device type:", cls)
+            log_warn("Unknown device type:", cls)
             return
-        config = cls.new_config()
+
+        config = {**cls.new_config(), **config}
         cur_devices = self.config.get_prop("devices")
         cur_devices.append(config)
         self.config.set_prop("devices", cur_devices)
@@ -290,34 +225,17 @@ class DevicesManager:
         device.reload_config()
         device.start()
 
-    def change_pin(self, device_id, new_pin):
-        device = self.id_to_devices.get(device_id, None)
-        if not device:
-            return
-
-        device.stop()
-        device.change_pin(new_pin)
-        self.config.flush()
-        device.reload_config()
-        device.start()
-
 
 class GPIOPlugin(AntonPlugin):
 
     def setup(self, plugin_startup_info):
         self.settings = Settings(plugin_startup_info.data_dir)
+        self.devices_manager = DevicesManager(self.settings)
+        self.app_handler = AppHandler(plugin_startup_info,
+                                      self.devices_manager)
 
-        platform_request_controller = PlatformRequestController(lambda obj: 0)
-        self.send_platform_request = (
-            platform_request_controller.create_client(0, self.on_response))
-
-        event_controller = GenericEventController(lambda call_status: 0)
-        self.send_event = event_controller.create_client(0, self.on_response)
-
-        self.devices_manager = DevicesManager(self.settings,
-                                              self.send_platform_request,
-                                              self.send_event)
-
+        self.channel = Channel(self.devices_manager, self.app_handler)
+        """
         platform_response_controller = PlatformResponseController(
             {"gpio_event": self.devices_manager.on_pin_value_changed})
 
@@ -327,22 +245,12 @@ class GPIOPlugin(AntonPlugin):
         settings_controller = SettingsController(self.settings,
                                                  self.devices_manager,
                                                  plugin_startup_info.data_dir)
-
+        """
         registry = self.channel_registrar()
-        registry.register_controller(PipeType.IOT_INSTRUCTION,
-                                     instruction_controller)
-        registry.register_controller(PipeType.IOT_EVENTS, event_controller)
-        registry.register_controller(PipeType.PLATFORM_REQUEST,
-                                     platform_request_controller)
-        registry.register_controller(PipeType.PLATFORM_RESPONSE,
-                                     platform_response_controller)
-        registry.register_controller(PipeType.SETTINGS, settings_controller)
+        registry.register_controller(PipeType.DEFAULT, self.channel)
 
     def on_start(self):
         self.devices_manager.start()
 
     def on_stop(self):
         self.devices_manager.stop()
-
-    def on_response(self, call_status):
-        print("Received response:", call_status)
