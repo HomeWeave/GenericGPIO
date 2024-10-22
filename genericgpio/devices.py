@@ -2,6 +2,8 @@ from uuid import getnode
 from anton.device_pb2 import DeviceKind, DeviceStatus
 from anton.state_pb2 import DeviceState
 
+from pyantonlib.exceptions import BadArguments
+
 
 class GenericDevice:
 
@@ -135,13 +137,16 @@ class SimpleActuatorDevice(GenericDevice):
 KNOWN_DEVICE_TYPES = {
     "MotionSensorDevice": {
         "kind": DeviceKind.DEVICE_KIND_MOTION_SENSOR,
+        "default_name": "Motion Sensor",
         "cls": MotionSensorDevice
     },
     "SimpleSensorDevice": {
-        "cls": SimpleSensorDevice
+        "cls": SimpleSensorDevice,
+        "default_name": "Simple Sensor Device"
     },
     "SimpleActuatorDevice": {
-        "cls": SimpleActuatorDevice
+        "cls": SimpleActuatorDevice,
+        "default_name": "Simple Actuator Device",
     }
 }
 
@@ -166,4 +171,7 @@ def device_kind_to_str(device_kind):
 
 
 def get_device_class(type_str):
-    return KNOWN_DEVICE_TYPES[type_str]["cls"]
+    try:
+        return KNOWN_DEVICE_TYPES[type_str]["cls"]
+    except:
+        raise BadArguments(type_str)

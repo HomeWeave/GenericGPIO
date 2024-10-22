@@ -10,6 +10,7 @@ from pyantonlib.plugin import AntonPlugin
 from pyantonlib.channel import AppHandlerBase, DeviceHandlerBase
 from pyantonlib.channel import DefaultProtoChannel
 from pyantonlib.dynamic_app import load_dynamic_app
+from pyantonlib.exceptions import BadArguments
 from pyantonlib.utils import log_info, log_warn
 from anton.plugin_pb2 import PipeType
 from anton.device_pb2 import DeviceKind
@@ -21,7 +22,7 @@ from anton.gpio_pb2 import EDGE_TYPE_BOTH, PIN_VALUE_HIGH
 from anton.ui_pb2 import Page, CustomMessage, DynamicAppRequestType
 
 from genericgpio.settings import Settings
-from genericgpio.devices import get_device_class
+from genericgpio.devices import get_device_class, KNOWN_DEVICE_TYPES
 
 
 class Channel(DefaultProtoChannel):
@@ -59,16 +60,10 @@ class AppHandler(AppHandlerBase):
             {
                 "type": "supported_devices",
                 "value": {
-                    "supported_devices": [
-                        {
-                            "id": "SimpleSensorDevice",
-                            "name": "Simple Sensor Device"
-                        },
-                        {
-                            "id": "SimpleActuatorDevice",
-                            "name": "Simple Actuator Device"
-                        },
-                    ]
+                    "supported_devices": [{
+                        "id": k,
+                        "name": v["default_name"]
+                    } for k, v in KNOWN_DEVICE_TYPES.items()]
                 }
             },
             requester_id=requester_id)
@@ -78,7 +73,7 @@ class AppHandler(AppHandlerBase):
             {
                 "type": "available_pins",
                 "value": {
-                    "available_pins": [0, 1, 2, 3]
+                    "available_pins": list(range(2, 29))
                 }
             },
             requester_id=requester_id)
@@ -100,17 +95,15 @@ class DevicesManager(DeviceHandlerBase):
         self.id_to_devices = {}
         for device_config in self.config.get_prop("devices", []):
             device_class = get_device_class(device_config["type"])
-            if device_class:
-                device = device_class(device_config, self)
-                self.id_to_devices[device.device_id()] = device
-                device.start()
+            device = device_class(device_config, self)
+            self.id_to_devices[device.device_id()] = device
+            device.start()
 
     def stop(self):
         for device in self.id_to_devices.values():
             device.stop()
 
-    def handle_platform_response(self, msg, callback):
-        platform_response = msg.platform_response
+    def handle_platform_response(self, platform_response, callback):
         if platform_response.WhichOneof('response_type') != 'gpio_event':
             return
 
@@ -155,9 +148,10 @@ class DevicesManager(DeviceHandlerBase):
 
     def add_device(self, config):
         cls = get_device_class(config["type"])
-        if not cls:
-            log_warn("Unknown device type:", cls)
-            return
+
+        if config["pin"] in self.pin_to_devices:
+            raise BadArguments("Another device registered to: " +
+                               str(config["pin"]))
 
         config = {**cls.new_config(), **config}
         cur_devices = self.config.get_prop("devices")
