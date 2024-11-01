@@ -30,6 +30,7 @@ class GenericDevice:
                           friendly_name=self.device_name,
                           device_status=DeviceStatus.DEVICE_STATUS_ONLINE,
                           kind=self.device_kind)
+        self.fill_device_meta(msg)
         self.fill_device_state(msg)
         self.devices_manager.send_device_state_updated(msg)
 
@@ -43,6 +44,9 @@ class GenericDevice:
 
     def on_instruction(self, instruction):
         raise NotImplementedError
+
+    def fill_device_meta(self, event):
+        pass
 
     def fill_device_state(self, device_state):
         raise NotImplementedError
@@ -89,10 +93,11 @@ class MotionSensorDevice(SimpleSensorDevice):
 
     def fill_device_meta(self, event):
         event.device_kind = DeviceKind.DEVICE_KIND_MOTION_SENSOR
+        event.capabilities.sensor.supports_motion_sensor = True
 
     def on_change(self, pin, value):
-        event = GenericEvent(device_id=self.device_id)
-        event.sensor.motion_sensor = MOTION_DETECTED if value else NO_MOTION
+        msg = DeviceState(device_id=self.device_id())
+        msg.motion_sensor_event = MOTION_DETECTED if value else NO_MOTION
         self.send_event(event)
 
     @staticmethod

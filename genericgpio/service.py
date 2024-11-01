@@ -114,8 +114,11 @@ class DevicesManager(DeviceHandlerBase):
 
         device = self.pin_to_devices.get(gpio_event.pin_state.pin_number)
         if not device:
-            device.on_change(gpio_event.pin_state.pin_number,
-                             gpio_event.pin_state.pin_value)
+            raise ResourceNotFound("No device listening to pin: " +
+                                   str(gpio_event.pin_state.pin_number))
+
+        device.on_change(gpio_event.pin_state.pin_number,
+                         gpio_event.pin_state.pin_value)
 
     def handle_instruction(self, msg, callback):
         instruction = msg.instruction
@@ -133,6 +136,7 @@ class DevicesManager(DeviceHandlerBase):
         self.send_platform_request(req)
 
         self.pin_to_devices[pin_number] = device
+        log_info("Subscribing to device on pin: " + str(pin_number))
 
     def unsubscribe_pin(self, device, pin_number):
         req = PlatformRequest()
