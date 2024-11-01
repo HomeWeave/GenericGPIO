@@ -1,6 +1,7 @@
 from uuid import getnode
 from anton.device_pb2 import DeviceKind, DeviceStatus
 from anton.state_pb2 import DeviceState
+from anton.sensor_pb2 import MotionSensorState
 
 from pyantonlib.exceptions import BadArguments
 
@@ -92,12 +93,13 @@ class SimpleSensorDevice(GenericDevice):
 class MotionSensorDevice(SimpleSensorDevice):
 
     def fill_device_meta(self, event):
-        event.device_kind = DeviceKind.DEVICE_KIND_MOTION_SENSOR
+        event.kind = DeviceKind.DEVICE_KIND_MOTION_SENSOR
         event.capabilities.sensor.supports_motion_sensor = True
 
     def on_change(self, pin, value):
         msg = DeviceState(device_id=self.device_id())
-        msg.motion_sensor_event = MOTION_DETECTED if value else NO_MOTION
+        msg.motion_sensor_event = (MotionSensorState.MOTION_DETECTED
+                                   if value else MotionSensorState.NO_MOTION)
         self.send_event(event)
 
     @staticmethod
