@@ -100,7 +100,7 @@ class MotionSensorDevice(SimpleSensorDevice):
         msg = DeviceState(device_id=self.device_id())
         msg.motion_sensor_event = (MotionSensorState.MOTION_DETECTED
                                    if value else MotionSensorState.NO_MOTION)
-        self.devices_manager.send_event(event)
+        self.devices_manager.send_event(msg)
 
     @staticmethod
     def new_config():
