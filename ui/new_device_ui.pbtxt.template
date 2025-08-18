@@ -2,6 +2,13 @@ id: "newDeviceContainer"
 replacement_target: "new_device_container"
 scroll_layout {
   containers {
+    id: "btnAddDevices"
+    text {
+      text: "Add new Device"
+      typography: H5
+    }
+  }
+  containers {
     id: "new_device_type_drop_down"
     drop_down {
       name: "Device Type"
@@ -81,7 +88,7 @@ scroll_layout {
             target_id: "payload_json"
             context_id: "."
             transform_expression: '{action: \"add_device\",'
-                                  'type: .new_device_type,'
+                                  'kind: .new_device_type,'
                                   'pin: .new_device_pin}'
           }
         }
@@ -93,6 +100,9 @@ scroll_layout {
         }
         actions {
           action_id: "send_data"
+        }
+        actions {
+          action_id: "close_modal"
         }
       }
     }

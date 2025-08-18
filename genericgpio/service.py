@@ -40,6 +40,9 @@ class AppHandler(AppHandlerBase):
         self.register_action('get_supported_device_types',
                              self.handle_get_supported_device_types)
         self.register_action('add_device', self.handle_add_device)
+        self.register_action('device_delete', self.handle_delete_device)
+        self.register_action('update_device_name',
+                             self.handle_update_device_name)
 
     def get_ui_path(self, app_type):
         if app_type == DynamicAppRequestType.SETTINGS:
@@ -81,6 +84,18 @@ class AppHandler(AppHandlerBase):
     def handle_add_device(self, requester_id, msg):
         msg.pop('action', None)
         self.devices_manager.add_device(msg)
+        self.handle_get_all_devices(requester_id=None, msg={})
+
+    def handle_delete_device(self, requester_id, msg):
+        device_id = msg['device_id']
+        self.devices_manager.remove_device(device_id)
+        self.handle_get_all_devices(requester_id=None, msg={})
+
+    def handle_update_device_name(self, requester_id, msg):
+        new_device_name = msg['new_device_name']
+        device_id = msg['device_id']
+        self.devices_manager.update_name(device_id, new_device_name)
+        self.handle_get_all_devices(requester_id=None, msg={})
 
 
 class DevicesManager(DeviceHandlerBase):
@@ -94,10 +109,13 @@ class DevicesManager(DeviceHandlerBase):
         self.pin_to_devices = {}
         self.id_to_devices = {}
         for device_config in self.config.get_prop("devices", []):
-            device_class = get_device_class(device_config["type"])
-            device = device_class(device_config, self)
-            self.id_to_devices[device.device_id()] = device
-            device.start()
+            try:
+                device_class = get_device_class(device_config["kind"])
+                device = device_class(device_config, self)
+                self.id_to_devices[device.device_id()] = device
+                device.start()
+            except Exception as e:
+                log_warn("Unable to start GPIO Device: " + str(device_config))
 
     def stop(self):
         for device in self.id_to_devices.values():
@@ -151,7 +169,7 @@ class DevicesManager(DeviceHandlerBase):
         return [device.get_config() for device in self.id_to_devices.values()]
 
     def add_device(self, config):
-        cls = get_device_class(config["type"])
+        cls = get_device_class(config["kind"])
 
         if config["pin"] in self.pin_to_devices:
             raise BadArguments("Another device registered to: " +
@@ -161,8 +179,24 @@ class DevicesManager(DeviceHandlerBase):
         cur_devices = self.config.get_prop("devices")
         cur_devices.append(config)
         self.config.set_prop("devices", cur_devices)
-        self.stop()
-        self.start()
+
+        device = cls(config, self)
+        self.id_to_devices[device.device_id()] = device
+        device.start()
+
+    def remove_device(self, device_id):
+        device = self.id_to_devices.pop(device_id, None)
+        if not device:
+            return
+
+        device.stop()
+        cur_devices = [
+            x.get_config() for x in self.id_to_devices.values()
+            if device_id != x.device_id()
+        ]
+        self.config.set_prop("devices", cur_devices)
+
+        self.delete_device(device_id)
 
     def update_name(self, device_id, new_name):
         device = self.id_to_devices.get(device_id, None)
@@ -171,8 +205,11 @@ class DevicesManager(DeviceHandlerBase):
 
         device.stop()
         device.update_name(new_name)
-        self.config.flush()
-        device.reload_config()
+
+        cur_devices = [x.get_config() for x in self.id_to_devices.values()]
+        self.config.set_prop("devices", cur_devices)
+
+        device.stop()
         device.start()
 
 

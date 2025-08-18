@@ -1,36 +1,67 @@
+replacement_target: "devices_section"
 scroll_layout {
-  {% if all_devices.length > 0 %}
-  containers {
-    id: "title"
-    text: {
-      text: "Configured devices"
-      typography: H5
-    }
-  }
-  {% endif %}
-  {% for device in all_devices %}
-    containers {
-      id: "title_{{ device.id }}_normal"
-      box {
-        border {
-          color {
-            hex: "#DDD"
+  containers [
+    {
+      id: "configured_devices_container"
+      grid_layout {
+        containers [
+          {
+            id: "add_device_container"
+            box {
+              container {
+                card {
+                  icon {
+                    image_url: "https://cdn-icons-png.flaticon.com/512/2661/2661440.png"
+                  }
+                  title: "Add New Device"
+                  on_click {
+                    actions [{
+                      action_id: "open_modal"
+                      additional_context {
+                        resource: "ui/new_device_ui.pbtxt.template"
+                      }
+                    }]
+                  }
+                }
+              }
+            }
           }
-        }
-        container {
-          text {
-            text: "{{ device.name }}"
+        ]
+        {% for device in all_devices %}
+          containers {
+            id: "title_{{ device.id }}_normal"
+            box {
+              container {
+                card {
+                  title: "{{ device.name }}"
+                  icon {
+                    image_url: "https://cdn-icons-png.flaticon.com/512/689/689397.png"
+                  }
+                  chips {
+                    chips {
+                      label: "{{ device.type }}"
+                    }
+                    chips {
+                      label: "GPIO: {{ device.pin }}"
+                    }
+                  }
+                  on_click {
+                    actions [{
+                      action_id: "open_modal"
+                      additional_context {
+                        resource: "ui/edit_device_ui.pbtxt.template"
+                        deviceId: "{{ device.id }}"
+                        deviceName: "{{ device.name }}"
+                        devicePin: "{{ device.pin }}"
+                      }
+                    }]
+                  }
+                }
+              }
+            }
           }
-        }
+        {% endfor %}
       }
     }
-  {% endfor %}
-  {% if all_devices.length == 0 %}
-    containers [{
-      id: "title_prompt_configure"
-      text {
-        text: "No GPIO Devices configured."
-      }
-    }]
-  {% endif %}
+  ]
 }

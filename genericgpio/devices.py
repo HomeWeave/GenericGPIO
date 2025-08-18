@@ -2,6 +2,7 @@ from uuid import getnode
 from anton.device_pb2 import DeviceKind, DeviceStatus
 from anton.state_pb2 import DeviceState
 from anton.sensor_pb2 import MotionSensorState
+from anton.gpio_pb2 import PinValue
 
 from pyantonlib.exceptions import BadArguments
 
@@ -52,6 +53,10 @@ class GenericDevice:
     def fill_device_state(self, device_state):
         raise NotImplementedError
 
+    def update_name(self, new_name):
+        self.device_name = new_name
+        self.config["name"] = new_name
+
 
 class SimpleSensorDevice(GenericDevice):
 
@@ -99,21 +104,18 @@ class MotionSensorDevice(SimpleSensorDevice):
     def on_change(self, pin, value):
         msg = DeviceState(device_id=self.device_id())
         msg.motion_sensor_event = (MotionSensorState.MOTION_DETECTED
-                                   if value else MotionSensorState.NO_MOTION)
+                                   if value == PinValue.PIN_VALUE_HIGH else
+                                   MotionSensorState.NO_MOTION)
         self.devices_manager.send_event(msg)
 
     @staticmethod
     def new_config():
         config = super(MotionSensorDevice, MotionSensorDevice).new_config()
-        config["type"] = MotionSensorDevice.__name__
+        config["kind"] = MotionSensorDevice.__name__
         return config
 
 
 class SimpleActuatorDevice(GenericDevice):
-
-    def reload_config(self):
-        super().reload_config()
-        self.pin = int(self.config["pin"])
 
     def start(self):
         super().start()

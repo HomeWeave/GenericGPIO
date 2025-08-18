@@ -1,31 +1,29 @@
 /*
 import: ui/devices_ui.pbtxt.template
 import: ui/new_device_ui.pbtxt.template
+import: ui/edit_device_ui.pbtxt.template
 */
 root {
   scroll_layout {
-    containers {
-      id: "btnAddDevices"
-      text {
-        text: "Add new Device"
-        typography: H5
-      }
-    }
-    containers {
-      id: "newDeviceContainer"
-      text { text: "" }
-      replacement_target: "new_device_container"
-    }
-    containers {
-      id: "separator"
-      horizontal_line {}
-    }
     containers {
       id: "txtLoadingDevices"
       text {
         text: "Loading devices.."
       }
       replacement_target: "devices_section"
+    }
+    containers {
+      id: "__modal__"
+      replacement_target: "__modal__"
+      modal {
+        container {
+          id: "__modal_contents__"
+          replacement_target: "__modal_contents__"
+          text {
+            text: "test"
+          }
+        }
+      }
     }
   }
 }
@@ -57,18 +55,21 @@ subscriptions {
     actions {
       action_id: "handle_devices_change"
       conditional {
+        jq_conditional: "(.[\"$result\"] | type) == \"object\""
         jq_conditional: ".[\"$result\"].type == \"devices\""
       }
     }
     actions {
       action_id: "handle_supported_devices_change"
       conditional {
+        jq_conditional: "(.[\"$result\"] | type) == \"object\""
         jq_conditional: ".[\"$result\"].type == \"supported_devices\""
       }
     }
     actions {
       action_id: "handle_available_pins_change"
       conditional {
+        jq_conditional: "(.[\"$result\"] | type) == \"object\""
         jq_conditional: ".[\"$result\"].type == \"available_pins\""
       }
     }
@@ -130,6 +131,39 @@ configured_actions {
   }
 }
 configured_actions {
+  key: "open_modal"
+  value {
+    actions {
+      debug {
+        context_id: "."
+        tag: "Before opening modal.."
+      }
+    }
+    actions {
+      action_id: "get_template_container"
+      additional_context {
+        key: "resource"
+        value: "{{ resource }}"
+      }
+    }
+    actions {
+      modal_action {
+        open: true
+      }
+    }
+  }
+}
+configured_actions {
+  key: "close_modal"
+  value {
+    actions {
+      modal_action {
+        open: false
+      }
+    }
+  }
+}
+configured_actions {
   key: "get_all_devices"
   value {
     actions {
@@ -180,17 +214,6 @@ configured_actions {
         target_id: "supported_devices"
       }
     }
-    actions {
-      action_id: "load_template_container"
-      additional_context {
-        key: "resource"
-        value: "ui/new_device_ui.pbtxt.template"
-      }
-      additional_context {
-        key: "target"
-        value: "new_device_container"
-      }
-    }
   }
 }
 configured_actions {
@@ -206,21 +229,10 @@ configured_actions {
         target_id: "available_pins"
       }
     }
-    actions {
-      action_id: "load_template_container"
-      additional_context {
-        key: "resource"
-        value: "ui/new_device_ui.pbtxt.template"
-      }
-      additional_context {
-        key: "target"
-        value: "new_device_container"
-      }
-    }
   }
 }
 configured_actions {
-  key: "load_template_container"
+  key: "get_template_container"
   value {
     actions {
       load_resource_action {
@@ -234,6 +246,14 @@ configured_actions {
       parse_action {
         parse_text_proto_type: "anton.ui.Container"
       }
+    }
+  }
+}
+configured_actions {
+  key: "load_template_container"
+  value {
+    actions {
+      action_id: "get_template_container"
     }
     actions {
       debug {
