@@ -163,6 +163,7 @@ class DevicesManager(DeviceHandlerBase):
         req.gpio_request.gpio_input.edge_type = EDGE_TYPE_BOTH
         self.send_platform_request(req)
 
+        log_info("Unsubscribing from pin: " + str(pin_number))
         self.pin_to_devices.pop(pin_number, None)
 
     def get_devices(self):
