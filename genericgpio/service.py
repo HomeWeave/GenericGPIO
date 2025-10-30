@@ -10,15 +10,16 @@ from pyantonlib.plugin import AntonPlugin
 from pyantonlib.channel import AppHandlerBase, DeviceHandlerBase
 from pyantonlib.channel import DefaultProtoChannel
 from pyantonlib.dynamic_app import load_dynamic_app
-from pyantonlib.exceptions import BadArguments
+from pyantonlib.exceptions import BadArguments, ResourceNotFound
 from pyantonlib.utils import log_info, log_warn
 from anton.plugin_pb2 import PipeType
+from anton.call_status_pb2 import CallStatus, Status
 from anton.device_pb2 import DeviceKind
 from anton.device_pb2 import DEVICE_STATUS_ONLINE, DEVICE_STATUS_OFFLINE
 from anton.device_pb2 import DEVICE_KIND_MOTION_SENSOR
 from anton.platform_pb2 import PlatformRequest
 from anton.sensor_pb2 import MOTION_DETECTED, NO_MOTION
-from anton.gpio_pb2 import EDGE_TYPE_BOTH, PIN_VALUE_HIGH
+from anton.gpio_pb2 import EDGE_TYPE_BOTH, PinValue
 from anton.ui_pb2 import Page, CustomMessage, DynamicAppRequestType
 
 from genericgpio.settings import Settings
@@ -138,13 +139,14 @@ class DevicesManager(DeviceHandlerBase):
         device.on_change(gpio_event.pin_state.pin_number,
                          gpio_event.pin_state.pin_value)
 
-    def handle_instruction(self, msg, callback):
-        instruction = msg.instruction
-        device = self.id_to_devices.get(instruction.device_id, None)
+    def handle_set_device_state(self, state, callback):
+        device = self.id_to_devices.get(state.device_id, None)
         if device:
-            device.on_instruction(context, instruction)
+            device.on_instruction(state)
+            callback(CallStatus(code=Status.STATUS_OK))
         else:
-            log_warn("No device found: " + instruction.device_id)
+            log_warn("No device found: " + state.device_id)
+            raise ResourceNotFound("Device with device_id: " + state.device_id)
 
     def subscribe_pin(self, device, pin_number):
         req = PlatformRequest()
@@ -165,6 +167,16 @@ class DevicesManager(DeviceHandlerBase):
 
         log_info("Unsubscribing from pin: " + str(pin_number))
         self.pin_to_devices.pop(pin_number, None)
+
+    def set_pin(self, device, pin_number, value):
+        req = PlatformRequest()
+        req.gpio_request.device_id = device.device_id()
+        req.gpio_request.gpio_output.pin_number = pin_number
+        req.gpio_request.gpio_output.pin_value = (
+            PinValue.PIN_VALUE_HIGH if value else PinValue.PIN_VALUE_LOW)
+        self.send_platform_request(req)
+
+        log_info("Setting pin " + str(pin_number) + " to: " + str(value))
 
     def get_devices(self):
         return [device.get_config() for device in self.id_to_devices.values()]

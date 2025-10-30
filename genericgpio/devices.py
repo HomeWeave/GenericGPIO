@@ -3,6 +3,7 @@ from anton.device_pb2 import DeviceKind, DeviceStatus
 from anton.state_pb2 import DeviceState
 from anton.sensor_pb2 import MotionSensorState
 from anton.gpio_pb2 import PinValue
+from anton.power_pb2 import PowerState
 
 from pyantonlib.exceptions import BadArguments
 
@@ -17,8 +18,7 @@ class GenericDevice:
         self.device_kind = str_to_device_kind(self.config["kind"])
 
     def device_id(self):
-        return "{}-{}-pin-{}".format(self.__class__.__name__, getnode(),
-                                     self.pin)
+        raise NotImplementedError
 
     def get_config(self):
         return {
@@ -44,7 +44,7 @@ class GenericDevice:
     def on_change(self, pin, value):
         raise NotImplementedError
 
-    def on_instruction(self, instruction):
+    def on_instruction(self, state):
         raise NotImplementedError
 
     def fill_device_meta(self, event):
@@ -71,6 +71,10 @@ class SimpleSensorDevice(GenericDevice):
     def stop(self):
         self.devices_manager.unsubscribe_pin(self, self.pin)
         super().stop()
+
+    def device_id(self):
+        return "{}-{}-pin-{}".format(self.__class__.__name__, getnode(),
+                                     self.pin)
 
     def fill_device_meta(self, event):
         pass
@@ -117,22 +121,33 @@ class MotionSensorDevice(SimpleSensorDevice):
 
 class SimpleActuatorDevice(GenericDevice):
 
-    def start(self):
-        super().start()
-        self.devices_manager.subscribe_instruction(self, self.pin)
+    def __init__(self, config, devices_manager):
+        super().__init__(config, devices_manager)
+        self.pin = int(self.config["pin"])
 
-    def stop(self):
-        self.devices_manager.unsubscribe_instruction(self, self.pin)
-        super().stop()
+    def device_id(self):
+        return "{}-{}-pin-{}".format(self.__class__.__name__, getnode(),
+                                     self.pin)
 
     def fill_device_meta(self, event):
-        pass
+        event.kind = DeviceKind.DEVICE_KIND_GENERIC_ACTUATOR
+        event.capabilities.power_state.supported_power_states[:] = [
+            PowerState.POWER_STATE_OFF, PowerState.POWER_STATE_ON
+        ]
 
     def fill_device_state(self, device_state):
         pass
 
-    def on_instruction(self, context, instruction):
-        pass
+    def on_instruction(self, state):
+        if state.power_state == PowerState.POWER_STATE_ON:
+            self.devices_manager.set_pin(self, self.pin, 1)
+        elif state.power_state == PowerState.POWER_STATE_OFF:
+            self.devices_manager.set_pin(self, self.pin, 0)
+
+    def get_config(self):
+        obj = super().get_config()
+        obj["pin"] = self.pin
+        return obj
 
     @staticmethod
     def new_config():
