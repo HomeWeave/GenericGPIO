@@ -39,7 +39,7 @@ scroll_layout {
                   }
                   chips {
                     chips {
-                      label: "{{ device.type }}"
+                      label: "{{ device.kind }}"
                     }
                     chips {
                       label: "GPIO: {{ device.pin }}"
