@@ -101,10 +101,11 @@ class AppHandler(AppHandlerBase):
 
 class DevicesManager(DeviceHandlerBase):
 
-    def __init__(self, config):
+    def __init__(self, config, instance_id):
         self.config = config
         self.pin_to_devices = {}
         self.id_to_devices = {}
+        self.instance_id = instance_id
 
     def start(self):
         self.pin_to_devices = {}
@@ -230,7 +231,8 @@ class GPIOPlugin(AntonPlugin):
 
     def setup(self, plugin_startup_info):
         self.settings = Settings(plugin_startup_info.data_dir)
-        self.devices_manager = DevicesManager(self.settings)
+        self.devices_manager = DevicesManager(self.settings,
+                                              plugin_startup_info.instance_id)
         self.app_handler = AppHandler(plugin_startup_info,
                                       self.devices_manager)
 

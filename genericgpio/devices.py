@@ -73,7 +73,8 @@ class SimpleSensorDevice(GenericDevice):
         super().stop()
 
     def device_id(self):
-        return "{}-{}-pin-{}".format(self.__class__.__name__, getnode(),
+        return "{}-{}-pin-{}".format(self.__class__.__name__,
+                                     self.devices_manager.instance_id,
                                      self.pin)
 
     def fill_device_meta(self, event):
@@ -126,7 +127,8 @@ class SimpleActuatorDevice(GenericDevice):
         self.pin = int(self.config["pin"])
 
     def device_id(self):
-        return "{}-{}-pin-{}".format(self.__class__.__name__, getnode(),
+        return "{}-{}-pin-{}".format(self.__class__.__name__,
+                                     self.devices_manager.instance_id,
                                      self.pin)
 
     def fill_device_meta(self, event):
